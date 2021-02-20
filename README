@@ -1,0 +1,117 @@
+A basic serial mode ISP programmer for Nuvoton N76E003, under Linux
+
+This program is released under the GPL v2 or later license. See
+COPYING.
+
+Requirements
+============
+
+A Nuvoton N76E003 development board with UART pins, already programmed
+with the Nuvoton LDROM that provides ISP programming. For instance,
+that one:
+  https://www.electrodragon.com/product/n76e003-mini-development-board/
+A board without the ISP capability will need to be flashed with a
+NU-Link device.
+
+A PC with a serial port, or some USB-to-UART adapter, such as a CP2102
+or WH340. Ideally this adapter is able to power the chip too.
+
+Connection
+==========
+
+The ISP module will start if the chip sees a specific connect packet
+on its serial port 0 within a few milliseconds after powering up. If
+it doesn't get the packet, it will boot normally.
+
+The steps to get it to boot in ISP mode are:
+
+  - Connect the host and the board:
+       GND <--> GND
+       RX  <--> TX
+       TX  <--> RX.
+    Leave out 3.3V. On the board above, that would be the 4 pins on the
+    top right, when the usb connector is on the left.
+
+  - Connect the USB adapter.
+
+  - Start nvtispflash, which will begin polling the chip through the
+    serial device.
+
+  - Connect the 3.3V line to power up the N76 chip. The device will
+    recognize the connect command, and enter the ISP mode.
+
+Usage
+=====
+
+ISP programmer for Nuvoton N76E003
+Options:
+  --serial-device, -d    serial device to use. Defaults to /dev/ttyUSB0
+  --aprom, -a            binary APROM file to flash
+  --remain-isp, -r       remain in ISP mode when exiting
+
+iHEX files must be converted to binary first. SDCC provides the makebin
+tool for that purpose:
+
+    makebin -p prog.ihx prog.bin
+
+The file will be flashed at offset 0, which is the start address of
+the chip.
+
+Flashing the whole 14Kb shouldn't take more than a few seconds.
+
+Example
+=======
+
+    $ ./nvtispflash  -a blink.bin
+    make: Nothing to be done for 'all'.
+    Ready to connect
+    Connected
+    FW version: 0x27
+    Device is N76E003
+    Config:
+      LOCK: 1
+      RPD: 0
+      OCDEN: 0
+      OCDPWM: 1
+      CBS: 0
+      LDSIZE: LDROM=4K, APROM=14K
+      CBORST:1
+      BOIAP:1
+      CBOV:3
+      CBODEN:1
+      WDTEN:15
+    Flashing APROM with blink.bin
+    sending block of 48 bytes
+    sending block of 56 bytes
+    sending block of 56 bytes
+    sending block of 56 bytes
+    sending block of 20 bytes
+    Done
+    Rebooting to APROM
+
+Caveats
+=======
+
+Only the N76E003 is supported although other Nuvoton chips could be.
+
+There is no error recovery. If an error happens, the program will bail
+out.
+
+nvtispflash will not work on big-endian machines. Some byte swapping
+work would be needed.
+
+Programming the config or the data section is not supported at this
+moment, but should not be difficult to add.
+
+External resources
+==================
+
+An easy to build blink and uart test programs can be found in the
+following project:
+  https://github.com/erincandescent/libn76
+
+The official BSP converted for SDCC usage, but with no Makefile:
+  https://github.com/danchouzhou/N76E003-SDCC
+
+Novuton's own ISP, with its windows source code:
+  https://github.com/OpenNuvoton/ISPTool
