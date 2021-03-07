@@ -1,4 +1,5 @@
 CFLAGS = -O2 -Wall
+LDLIBS = -lserialport
 
 all: nvtispflash
 

@@ -114,12 +114,13 @@ _Static_assert(sizeof(struct pkt_ack) == 64, "bad ack size");
 
 /* Device state */
 struct dev {
-	int fd;			/* serial port */
 	const char *serial_device;
+	struct sp_port *sp;
 	uint32_t pkt_num;	 /* next packet number, for command and ack */
 	uint32_t checksum;	 /* checksum of last sent command */
 	struct pkt_ack ack;	 /* last response */
 	int aprom_size;		 /* APROM size, in bytes */
 	const char *aprom_file;	 /* Binary file to program */
 	bool remain_isp;	 /* Remain in ISP mode upon exiting */
+	bool read_serial;	 /* Read from serial line after programming */
 };

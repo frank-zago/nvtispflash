@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/types.h>
@@ -30,8 +31,12 @@
 #include <termios.h>
 #include <errno.h>
 #include <err.h>
+#include <libserialport.h>
 
 #include "nvtispflash.h"
+
+/* Default timeout for reading and writing commands */
+#define SERIAL_TIMEOUT 5000
 
 /* LDROM/APROM sizes, from LDSIZE config bits, for N76003 */
 static const struct {
@@ -63,9 +68,11 @@ static int send_cmd(struct dev *dev, struct pkt_cmd *cmd)
 	cmd->pkt_num = dev->pkt_num;
 	dev->checksum = calc_checksum(cmd);
 
-	rc = write(dev->fd, cmd, sizeof(*cmd));
-	if (rc == -1 && errno != EAGAIN)
-		return errno;
+	rc = sp_blocking_write(dev->sp, cmd, sizeof(*cmd), 5000);
+	if (rc != sizeof(*cmd))
+		return -ETIMEDOUT;
+
+	sp_drain(dev->sp);
 
 	dev->pkt_num++;
 
@@ -78,34 +85,25 @@ static int read_response(struct dev *dev, int timeout_ms)
 	void *p = &dev->ack;
 	int len = sizeof(dev->ack);
 
-	while (1) {
-		rc = read(dev->fd, p, len);
-		if (rc > 0) {
-			p += rc;
-			len -= rc;
-
-			if (len == 0) {
-				if (dev->ack.pkt_num != dev->pkt_num) {
-					printf("bad reply pkt_num: %u vs. %u\n", dev->ack.pkt_num, dev->pkt_num);
-					return -EBADMSG;
-				}
-
-				if (dev->ack.checksum != dev->checksum) {
-					printf("bad checksum %x vs %x\n", dev->ack.checksum, dev->checksum);
-					return -EBADMSG;
-				}
-
-				return 0;
-			}
+	if (timeout_ms)
+		rc = sp_blocking_read(dev->sp, p, len, timeout_ms);
+	else
+		rc = sp_nonblocking_read(dev->sp, p, len);
+	if (rc == len) {
+		if (dev->ack.pkt_num != dev->pkt_num) {
+			printf("bad reply pkt_num: %u vs. %u\n", dev->ack.pkt_num, dev->pkt_num);
+			return -EIO;
 		}
 
-		/* Not a real timeout for now. 0 means just exit asap. connect
-		 * needs that. */
-		if (timeout_ms == 0)
-			break;
+		if (dev->ack.checksum != dev->checksum) {
+			printf("bad checksum %x vs %x\n", dev->ack.checksum, dev->checksum);
+			return -EIO;
+		}
+
+		return 0;
 	}
 
-	return -ENODATA;
+	return -ETIMEDOUT;
 }
 
 /* Initiate connection to device. Issue the connect command every 40ms
@@ -146,7 +144,7 @@ static int generic_command(struct dev *dev, uint32_t opcode)
 	if (rc)
 		return rc;
 
-	rc = read_response(dev, 1000);
+	rc = read_response(dev, SERIAL_TIMEOUT);
 	if (rc)
 		return rc;
 
@@ -165,7 +163,7 @@ static int dev_sync_packno(struct dev *dev)
 	if (rc)
 		return rc;
 
-	rc = read_response(dev, 1000);
+	rc = read_response(dev, SERIAL_TIMEOUT);
 	if (rc)
 		return rc;
 
@@ -249,7 +247,7 @@ static int dev_update_aprom(struct dev *dev)
 	total_length = statbuf.st_size;
 
 	while (total_length) {
-		struct pkt_cmd cmd;
+		struct pkt_cmd cmd = {};
 
 		if (first) {
 			first = false;
@@ -275,18 +273,19 @@ static int dev_update_aprom(struct dev *dev)
 			memcpy(cmd.update_aprom2.data, p, to_copy);
 		}
 
-		total_length -= to_copy;
-		p += to_copy;
-
-		printf("sending block of %d bytes\n", to_copy);
+		printf("sending block of %d bytes, from offset 0x%lx\n",
+		       to_copy, (ptrdiff_t)p - (ptrdiff_t)buf);
 
 		rc = send_cmd(dev, &cmd);
 		if (rc)
 			return rc;
 
-		rc = read_response(dev, 1000);
+		rc = read_response(dev, SERIAL_TIMEOUT);
 		if (rc)
 			return rc;
+
+		total_length -= to_copy;
+		p += to_copy;
 	}
 
 	return 0;
@@ -295,30 +294,22 @@ static int dev_update_aprom(struct dev *dev)
 /* Open the serial device and configure it */
 static void open_serial_device(struct dev *dev)
 {
-	struct termios termios;
+	int rc;
 
-	dev->fd = open(dev->serial_device, O_RDWR | O_NOCTTY | O_NDELAY);
-	if (dev->fd == -1)
+	rc = sp_get_port_by_name(dev->serial_device, &dev->sp);
+	if (rc)
+		err(EXIT_FAILURE, "Can't allocate serial port");
+
+	rc = sp_open(dev->sp, SP_MODE_READ_WRITE);
+	if (rc)
 		err(EXIT_FAILURE, "Can't open serial port %s", dev->serial_device);
 
-	if (tcgetattr(dev->fd, &termios) < 0)
-		err(EXIT_FAILURE, "Can't get serial port configuration");
-
-	cfsetispeed(&termios, B115200);
-	cfsetospeed(&termios, B115200);
-
-	termios.c_cflag &= ~PARENB;
-	termios.c_cflag &= ~CSTOPB;
-	termios.c_cflag &= ~CSIZE;
-	termios.c_cflag |= CS8;
-	termios.c_cflag &= ~CRTSCTS;
-	termios.c_cflag |= CREAD | CLOCAL;
-	termios.c_iflag &= ~(IXON | IXOFF | IXANY);
-	termios.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-	termios.c_oflag &= ~OPOST;
-
-	if (tcsetattr(dev->fd, TCSANOW, &termios) == -1)
-		err(EXIT_FAILURE, "Can't configure serial port");
+	if (sp_set_baudrate(dev->sp, 115200) ||
+	    sp_set_bits(dev->sp, 8) ||
+	    sp_set_parity(dev->sp, SP_PARITY_NONE) ||
+	    sp_set_stopbits(dev->sp, 1) ||
+	    sp_set_flowcontrol(dev->sp, SP_FLOWCONTROL_NONE))
+		err(EXIT_FAILURE, "Can't set a serial port setting");
 }
 
 static const struct option long_options[] = {
@@ -370,8 +361,11 @@ int main(int argc, char *argv[])
 		case 'h':
 			usage();
 			return EXIT_SUCCESS;
-		case'r':
+		case 'r':
 			dev.remain_isp = true;
+			break;
+		case 's':
+			dev.read_serial = true;
 			break;
                default:
 		       return EXIT_FAILURE;
@@ -436,6 +430,9 @@ int main(int argc, char *argv[])
 		printf("Rebooting to APROM\n");
 		dev_run_aprom(&dev);
 	}
+
+	sp_close(dev.sp);
+	sp_free_port(dev.sp);
 
 	return 0;
 }
