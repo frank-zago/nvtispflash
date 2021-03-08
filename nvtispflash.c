@@ -316,6 +316,7 @@ static const struct option long_options[] = {
 	{ "serial-device", required_argument, 0,  'd' },
 	{ "aprom-file", required_argument, 0,  'a' },
 	{ "remain-isp", no_argument, 0,  'r' },
+	{ "read-serial", no_argument, 0,  's' },
 	{ "help", no_argument, 0,  'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -327,6 +328,7 @@ void usage(void)
 	printf("  --serial-device, -d    serial device to use. Defaults to /dev/ttyUSB0\n");
 	printf("  --aprom, -a            binary APROM file to flash\n");
 	printf("  --remain-isp, -r       remain in ISP mode when exiting\n");
+	printf("  --read_serial, -s      read serial output after programming\n");
 }
 
 int main(int argc, char *argv[])
@@ -340,7 +342,7 @@ int main(int argc, char *argv[])
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "a:d:hr",
+		c = getopt_long(argc, argv, "a:d:hrs",
 				long_options, &option_index);
 		if (c == -1)
 			break;
@@ -429,6 +431,16 @@ int main(int argc, char *argv[])
 	if (!dev.remain_isp) {
 		printf("Rebooting to APROM\n");
 		dev_run_aprom(&dev);
+	}
+
+	if (dev.read_serial) {
+		char buf[500];
+
+		while (1) {
+			rc = sp_blocking_read_next(dev.sp, buf, sizeof(buf), 1000);
+			if (rc > 0)
+				printf("%.*s", rc, buf);
+		}
 	}
 
 	sp_close(dev.sp);
