@@ -63,7 +63,6 @@ Example
 =======
 
     $ ./nvtispflash  -a blink.bin
-    make: Nothing to be done for 'all'.
     Ready to connect
     Connected
     FW version: 0x27
@@ -113,5 +112,5 @@ following project:
 The official BSP converted for SDCC usage, but with no Makefile:
   https://github.com/danchouzhou/N76E003-SDCC
 
-Novuton's own ISP, with its windows source code:
+Nuvoton's own ISP, with its windows source code:
   https://github.com/OpenNuvoton/ISPTool
