@@ -195,22 +195,70 @@ static int dev_run_aprom(struct dev *dev)
 	return send_cmd(dev, &cmd);
 }
 
-static void decode_config(const struct dev *dev)
+static void decode_config(const union config_bytes *config)
 {
 	printf("Config:\n");
-	printf("  LOCK: %u\n", dev->ack.read_config.lock);
-	printf("  RPD: %u\n", dev->ack.read_config.rpd);
-	printf("  OCDEN: %u\n", dev->ack.read_config.ocden);
-	printf("  OCDPWM: %u\n", dev->ack.read_config.ocdpwm);
-	printf("  CBS: %u\n", dev->ack.read_config.cbs);
+	printf("  LOCK: %u\n", config->lock);
+	printf("  RPD: %u\n", config->rpd);
+	printf("  OCDEN: %u\n", config->ocden);
+	printf("  OCDPWM: %u\n", config->ocdpwm);
+	printf("  CBS: %u\n", config->cbs);
 	printf("  LDSIZE: LDROM=%uK, APROM=%uK\n",
-	       ldsize[dev->ack.read_config.ldsize].ldrom_size,
-	       ldsize[dev->ack.read_config.ldsize].aprom_size);
-	printf("  CBORST:%u\n", dev->ack.read_config.cborst);
-	printf("  BOIAP:%u\n", dev->ack.read_config.boiap);
-	printf("  CBOV:%u\n", dev->ack.read_config.cbov);
-	printf("  CBODEN:%u\n", dev->ack.read_config.cboden);
-	printf("  WDTEN:%u\n", dev->ack.read_config.wdten);
+	       ldsize[config->ldsize].ldrom_size,
+	       ldsize[config->ldsize].aprom_size);
+	printf("  CBORST:%u\n", config->cborst);
+	printf("  BOIAP:%u\n", config->boiap);
+	printf("  CBOV:%u\n", config->cbov);
+	printf("  CBODEN:%u\n", config->cboden);
+	printf("  WDTEN:%u\n", config->wdten);
+}
+
+int set_new_config_options(struct dev *dev)
+{
+	union config_bytes config_update;
+	struct pkt_cmd cmd = {};
+	bool changes = false;
+	int rc;
+	int i;
+
+	for (i = 0; i < sizeof(union config_bytes); i++) {
+		config_update.raw[i] = dev->config_current.raw[i] & ~dev->config_mask.raw[i];
+		config_update.raw[i] |= dev->config_new.raw[i];
+
+		if (config_update.raw[i] != dev->config_current.raw[i])
+			changes = true;
+	}
+
+	/* Avoid programming the config bits if nothing has
+	 * changed. This is not an error. */
+	if (!changes) {
+		printf("No config changes\n");
+		return 0;
+	}
+
+	/* Program the new config */
+	cmd.cmd = CMD_UPDATE_CONFIG;
+	cmd.update_config.new = config_update;
+
+	rc = send_cmd(dev, &cmd);
+	if (rc)
+		return rc;
+
+	rc = read_response(dev, SERIAL_TIMEOUT);
+	if (rc)
+		return rc;
+
+	/* Read the new config */
+	rc = generic_command(dev, CMD_READ_CONFIG);
+	if (rc)
+		return -EIO;
+
+	dev->config_current = dev->ack.read_config;
+
+	printf("New config options:\n");
+	decode_config(&dev->config_current);
+
+	return 0;
 }
 
 static int dev_update_aprom(struct dev *dev)
@@ -315,17 +363,72 @@ static void open_serial_device(struct dev *dev)
 static const struct option long_options[] = {
 	{ "serial-device", required_argument, 0,  'd' },
 	{ "aprom-file", required_argument, 0,  'a' },
+	{ "config-rpd", required_argument, 0,  'c' },
 	{ "remain-isp", no_argument, 0,  'r' },
 	{ "read-serial", no_argument, 0,  's' },
 	{ "help", no_argument, 0,  'h' },
 	{ 0, 0, 0, 0 }
 };
 
+static char * const opt_tokens[] = {
+	[OPT_RPD] = "rpd",
+	NULL
+};
+
+int process_config_options(struct dev *dev)
+{
+	char *subopts;
+	char *value;
+	int cfg_value;
+
+	subopts = optarg;
+	while (*subopts != '\0') {
+		int opt;
+
+		opt = getsubopt(&subopts, opt_tokens, &value);
+		if (opt == -1) {
+			fprintf(stderr, "Unrecognized config option '%s'\n",
+				value);
+			return -EINVAL;
+		}
+
+		if (value == NULL) {
+			fprintf(stderr, "Missing config value\n");
+			return -EINVAL;
+		}
+
+		if (strlen(value) != 1 || (value[0] != '0' && value[0] != '1')) {
+			fprintf(stderr,
+				"Invalid config value '%s'. Must be 0 or 1\n",
+				value);
+			return -EINVAL;
+		}
+
+		cfg_value = atoi(value);
+
+		switch (opt) {
+		case OPT_RPD:
+			dev->config_new.rpd = cfg_value;
+			dev->config_mask.rpd = 1;
+			break;
+
+		default:
+			fprintf(stderr, "No known config bit %s\n", value);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 void usage(void)
 {
 	printf("ISP programmer for Nuvoton N76E003\n");
 	printf("Options:\n");
 	printf("  --serial-device, -d    serial device to use. Defaults to /dev/ttyUSB0\n");
+	printf("  --config, -c           enable or disable some config bits\n");
+	printf("                         comma separated values of sub-options:\n");
+	printf("                           spd=0|1\n");
 	printf("  --aprom, -a            binary APROM file to flash\n");
 	printf("  --remain-isp, -r       remain in ISP mode when exiting\n");
 	printf("  --read_serial, -s      read serial output after programming\n");
@@ -338,11 +441,12 @@ int main(int argc, char *argv[])
 	};
 	int rc;
 	int c;
+	bool has_config_opts = false;
 
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "a:d:hrs",
+		c = getopt_long(argc, argv, "a:c:d:hrs",
 				long_options, &option_index);
 		if (c == -1)
 			break;
@@ -356,6 +460,11 @@ int main(int argc, char *argv[])
 			break;
 		case 'a':
 			dev.aprom_file = optarg;
+			break;
+		case 'c':
+			if (process_config_options(&dev))
+				return EXIT_FAILURE;
+			has_config_opts = true;
 			break;
 		case 'd':
 			dev.serial_device = optarg;
@@ -412,8 +521,16 @@ int main(int argc, char *argv[])
 	rc = generic_command(&dev, CMD_READ_CONFIG);
 	if (rc)
 		errx(EXIT_FAILURE, "Can't read config");
-	decode_config(&dev);
+	dev.config_current = dev.ack.read_config;
+
+	decode_config(&dev.config_current);
 	dev.aprom_size = ldsize[dev.ack.read_config.ldsize].aprom_size * 1024;
+
+	if (has_config_opts) {
+		rc = set_new_config_options(&dev);
+		if (rc)
+			errx(EXIT_FAILURE, "Can't set new config bits");
+	}
 
 	if (0) {
 		/* Implemented but not used. Avoid compilation warnings. */

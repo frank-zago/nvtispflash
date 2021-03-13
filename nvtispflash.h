@@ -36,6 +36,41 @@ enum {
 	CMD_WRITE_CHECKSUM   = 0xc9,
 };
 
+union config_bytes {
+	struct {
+		/* Config0 */
+		uint8_t rsvd1:  1;
+		uint8_t lock:   1;
+		uint8_t rpd:    1;
+		uint8_t rsvd2:  1;
+		uint8_t ocden:  1;
+		uint8_t ocdpwm: 1;
+		uint8_t rsvd3:  1;
+		uint8_t cbs:    1;
+
+		/* Config1 */
+		uint8_t ldsize: 3;
+		uint8_t rsvd4:  5;
+
+		/* Config2 */
+		uint8_t rsvd5:  2;
+		uint8_t cborst: 1;
+		uint8_t boiap:  1;
+		uint8_t cbov:   2;
+		uint8_t rsvd6:  1;
+		uint8_t cboden: 1;
+
+		uint8_t rsvd_config3;
+
+		/* Config4 */
+		uint8_t rsvd7:  4;
+		uint8_t wdten:  4;
+	};
+	uint8_t raw[5];
+};
+
+_Static_assert(sizeof(union config_bytes) == 5, "bad config size");
+
 /* Command packet */
 struct pkt_cmd {
 	uint32_t cmd;
@@ -53,6 +88,9 @@ struct pkt_cmd {
 		struct {
 			uint8_t data[56];
 		} update_aprom2;
+		struct {
+			union config_bytes new;
+		} update_config;
 		uint8_t pad[56];
 	};
 };
@@ -71,35 +109,7 @@ struct pkt_ack {
 		    uint32_t deviceid;
 	    } get_deviceid;
 
-	    struct {
-		    /* Config0 */
-		    uint8_t rsvd1:  1;
-		    uint8_t lock:   1;
-		    uint8_t rpd:    1;
-		    uint8_t rsvd2:  1;
-		    uint8_t ocden:  1;
-		    uint8_t ocdpwm: 1;
-		    uint8_t rsvd3:  1;
-		    uint8_t cbs:    1;
-
-		    /* Config1 */
-		    uint8_t ldsize: 3;
-		    uint8_t rsvd4:  5;
-
-		    /* Config2 */
-		    uint8_t rsvd5:  2;
-		    uint8_t cborst: 1;
-		    uint8_t boiap:  1;
-		    uint8_t cbov:   2;
-		    uint8_t rsvd6:  1;
-		    uint8_t cboden: 1;
-
-		    uint8_t rsvd_config3;
-
-		    /* Config4 */
-		    uint8_t rsvd7:  4;
-		    uint8_t wdten:  4;
-	    } read_config;
+	    union config_bytes read_config;
 
 	    struct {
 		    uint32_t mode;
@@ -112,6 +122,11 @@ struct pkt_ack {
 _Static_assert(sizeof(struct pkt_cmd) == 64, "bad packet size");
 _Static_assert(sizeof(struct pkt_ack) == 64, "bad ack size");
 
+/* Some chip config bits */
+enum {
+	OPT_RPD,
+};
+
 /* Device state */
 struct dev {
 	const char *serial_device;
@@ -123,4 +138,10 @@ struct dev {
 	const char *aprom_file;	 /* Binary file to program */
 	bool remain_isp;	 /* Remain in ISP mode upon exiting */
 	bool read_serial;	 /* Read from serial line after programming */
+
+	/* Current config bits, and config bits set by the command
+	 * line, if any. */
+	union config_bytes config_current;
+	union config_bytes config_new;
+	union config_bytes config_mask;
 };

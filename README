@@ -40,14 +40,20 @@ The steps to get it to boot in ISP mode are:
   - Connect the 3.3V line to power up the N76 chip. The device will
     recognize the connect command, and enter the ISP mode.
 
+If the config bit SPD is set to 1, and the board has a reset button,
+the 3.3V can be connected all the time. Pressing reset will reboot the
+board and boot the LDROM again.
+
 Usage
 =====
 
 ISP programmer for Nuvoton N76E003
 Options:
   --serial-device, -d    serial device to use. Defaults to /dev/ttyUSB0
+  --config, -c           enable or disable some config options
   --aprom, -a            binary APROM file to flash
   --remain-isp, -r       remain in ISP mode when exiting
+  --read_serial, -s      read serial output after programming
 
 iHEX files must be converted to binary first. SDCC provides the makebin
 tool for that purpose:
@@ -58,6 +64,11 @@ The file will be flashed at offset 0, which is the start address of
 the chip.
 
 Flashing the whole 14Kb shouldn't take more than a few seconds.
+
+Config bits can be changed as well. For safety, only one is currently
+supported. The option "--config spd=1" will enable the RESET pin,
+while setting it to 0 will disable it.
+
 
 Example
 =======
