@@ -19,30 +19,41 @@ or WH340. Ideally this adapter is able to power the chip too.
 Connection
 ==========
 
+Connect the board to the host UART like this:
+
+       GND <--> GND
+       RX  <--> TX
+       TX  <--> RX
+       DTR <--> Reset Pin (P20), optional
+       3.3V <--> 3.3V
+
 The ISP module will start if the chip sees a specific connect packet
 on its serial port 0 within a few milliseconds after powering up. If
 it doesn't get the packet, it will boot normally.
 
-The steps to get it to boot in ISP mode are:
+For that to happen, start nvtispflash, which will begin polling the
+chip through the serial device. The board must then be somehow rebooted.
 
-  - Connect the host and the board:
-       GND <--> GND
-       RX  <--> TX
-       TX  <--> RX.
-    Leave out 3.3V. On the board above, that would be the 4 pins on the
-    top right, when the usb connector is on the left.
+The best way is to let nvtispflash automatically reboot the board by
+triggering the DTR line. The following conditions must be met:
 
-  - Connect the USB adapter.
+  - DTR is connected
+  - The SPD bit is set to 1 in the chip config, meaning P20 is the
+    reset pin and not just a regular pin.
 
-  - Start nvtispflash, which will begin polling the chip through the
-    serial device.
+If these conditiona are not met, there are 2 other ways to boot the
+board in ISP mode.
 
-  - Connect the 3.3V line to power up the N76 chip. The device will
-    recognize the connect command, and enter the ISP mode.
+If the SPD bit is set to 1, a reset button, if present, will be able
+to reset the board.
 
-If the config bit SPD is set to 1, and the board has a reset button,
-the 3.3V can be connected all the time. Pressing reset will reboot the
-board and boot the LDROM again.
+  - Start nvtispflash
+  - press the reset button
+
+If this doesn't work, disconnect the 3.3V line and:
+  - Start nvtispflash
+  - reconnect the 3.3V line
+
 
 Usage
 =====

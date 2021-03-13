@@ -492,6 +492,13 @@ int main(int argc, char *argv[])
 
 	printf("Ready to connect\n");
 
+	/* Try to automatically reset the device. Move DTR to low then
+	 * high. This will not work if DTR is not connected or the SPD
+	 * config bit is not set to 1. */
+	sp_set_dtr(dev.sp, SP_DTR_ON);
+	usleep(1000);
+	sp_set_dtr(dev.sp, SP_DTR_OFF);
+
 	rc = dev_connect(&dev);
 	if (rc)
 		errx(EXIT_FAILURE, "Can't connect to device");
