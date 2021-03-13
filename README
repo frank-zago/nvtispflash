@@ -109,6 +109,12 @@ An easy to build blink and uart test programs can be found in the
 following project:
   https://github.com/erincandescent/libn76
 
+The official BSP
+  https://github.com/OpenNuvoton/N76E003-BSP
+
+That BSP includes the source code for the LDROM bootloader in
+  Sample_Code/ISP_UART0/Source.
+
 The official BSP converted for SDCC usage, but with no Makefile:
   https://github.com/danchouzhou/N76E003-SDCC
 
