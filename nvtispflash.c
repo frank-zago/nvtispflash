@@ -428,7 +428,7 @@ void usage(void)
 	printf("  --serial-device, -d    serial device to use. Defaults to /dev/ttyUSB0\n");
 	printf("  --config, -c           enable or disable some config bits\n");
 	printf("                         comma separated values of sub-options:\n");
-	printf("                           spd=0|1\n");
+	printf("                           rpd=0|1\n");
 	printf("  --aprom, -a            binary APROM file to flash\n");
 	printf("  --remain-isp, -r       remain in ISP mode when exiting\n");
 	printf("  --read_serial, -s      read serial output after programming\n");
@@ -493,7 +493,7 @@ int main(int argc, char *argv[])
 	printf("Ready to connect\n");
 
 	/* Try to automatically reset the device. Move DTR to low then
-	 * high. This will not work if DTR is not connected or the SPD
+	 * high. This will not work if DTR is not connected or the RPD
 	 * config bit is not set to 1. */
 	sp_set_dtr(dev.sp, SP_DTR_ON);
 	usleep(1000);

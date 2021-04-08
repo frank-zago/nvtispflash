@@ -24,7 +24,7 @@ Connect the board to the host UART like this:
        GND <--> GND
        RX  <--> TX
        TX  <--> RX
-       DTR <--> Reset Pin (P20), optional
+       DTR <--> Reset Pin (either P20 or RST), optional
        3.3V <--> 3.3V
 
 The ISP module will start if the chip sees a specific connect packet
@@ -38,13 +38,13 @@ The best way is to let nvtispflash automatically reboot the board by
 triggering the DTR line. The following conditions must be met:
 
   - DTR is connected
-  - The SPD bit is set to 1 in the chip config, meaning P20 is the
+  - The RPD bit is set to 1 in the chip config, meaning P20 is the
     reset pin and not just a regular pin.
 
 If these conditiona are not met, there are 2 other ways to boot the
 board in ISP mode.
 
-If the SPD bit is set to 1, a reset button, if present, will be able
+If the RPD bit is set to 1, a reset button, if present, will be able
 to reset the board.
 
   - Start nvtispflash
@@ -53,6 +53,11 @@ to reset the board.
 If this doesn't work, disconnect the 3.3V line and:
   - Start nvtispflash
   - reconnect the 3.3V line
+
+The RPD bit can bet set with the following command, which makes repeat
+programming easier, provided DTR is connected too:
+
+  nvtispflash -c rpd=1
 
 
 Usage
@@ -77,7 +82,7 @@ the chip.
 Flashing the whole 14Kb shouldn't take more than a few seconds.
 
 Config bits can be changed as well. For safety, only one is currently
-supported. The option "--config spd=1" will enable the RESET pin,
+supported. The option "--config rpd=1" will enable the RESET pin,
 while setting it to 0 will disable it.
 
 
