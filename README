@@ -10,11 +10,16 @@ A Nuvoton N76E003 development board with UART pins, already programmed
 with the Nuvoton LDROM that provides ISP programming. For instance,
 that one:
   https://www.electrodragon.com/product/n76e003-mini-development-board/
+
+Some of the blue breakout boards available on aliexpress also have the
+ISP bootloader, but sellers do not advertise it.
+
 A board without the ISP capability will need to be flashed with a
 NU-Link device.
 
 A PC with a serial port, or some USB-to-UART adapter, such as a CP2102
-or WH340. Ideally this adapter is able to power the chip too.
+or CH341A. Ideally this adapter is able to power the chip at 3.3V and
+has a DTR line.
 
 Connection
 ==========
@@ -54,8 +59,9 @@ If this doesn't work, disconnect the 3.3V line and:
   - Start nvtispflash
   - reconnect the 3.3V line
 
-The RPD bit can bet set with the following command, which makes repeat
-programming easier, provided DTR is connected too:
+That last method might be the only one that works on a new
+board. After that, the RPD bit can bet set with the following command,
+which makes repeat programming easier, provided DTR is connected too:
 
   nvtispflash -c rpd=1
 
@@ -126,8 +132,13 @@ out.
 nvtispflash will not work on big-endian machines. Some byte swapping
 work would be needed.
 
-Programming the config or the data section is not supported at this
-moment, but should not be difficult to add.
+Programming the config is partially supported. Programming the data
+section is not supported at this moment, but should not be difficult
+to add.
+
+Sometimes programming will fail, with the ISP not responding, or
+falling behind. As the communication protocol is primitive and not
+safe, it's easier to restart nvtispflash.
 
 External resources
 ==================
