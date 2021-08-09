@@ -14,8 +14,9 @@ that one:
 Some of the blue breakout boards available on aliexpress also have the
 ISP bootloader, but sellers do not advertise it.
 
-A board without the ISP capability will need to be flashed with a
-NU-Link device.
+A board without the ISP capability will need to be flashed with an
+LDROM bootloader, which can be achieved by using NU-Link device or by
+a gpio capable device running linux (see the last section for a link.)
 
 A PC with a serial port, or some USB-to-UART adapter, such as a CP2102
 or CH341A. Ideally this adapter is able to power the chip at 3.3V and
@@ -137,11 +138,15 @@ section is not supported at this moment, but should not be difficult
 to add.
 
 Sometimes programming will fail, with the ISP not responding, or
-falling behind. As the communication protocol is primitive and not
-safe, it's easier to restart nvtispflash.
+falling behind. As the communication protocol is not robust, it's
+easier to stop and restart nvtispflash.
 
 External resources
 ==================
+
+A similar program written in python, as well as a bootloader flashing
+software using a gpio capable device such as a Raspberry Pi:
+  https://github.com/steve-m/N76E003-playground.git
 
 An easy to build blink and uart test programs can be found in the
 following project:
