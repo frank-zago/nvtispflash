@@ -74,9 +74,9 @@ ISP programmer for Nuvoton N76E003
 Options:
   --serial-device, -d    serial device to use. Defaults to /dev/ttyUSB0
   --config, -c           enable or disable some config options
-  --aprom, -a            binary APROM file to flash
+  --aprom-file, -a       binary APROM file to flash
   --remain-isp, -r       remain in ISP mode when exiting
-  --read_serial, -s      read serial output after programming
+  --read-serial, -s      read serial output after programming
 
 iHEX files must be converted to binary first. SDCC provides the makebin
 tool for that purpose:
