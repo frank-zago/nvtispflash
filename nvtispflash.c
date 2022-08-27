@@ -363,7 +363,7 @@ static void open_serial_device(struct dev *dev)
 static const struct option long_options[] = {
 	{ "serial-device", required_argument, 0,  'd' },
 	{ "aprom-file", required_argument, 0,  'a' },
-	{ "config-rpd", required_argument, 0,  'c' },
+	{ "config", required_argument, 0,  'c' },
 	{ "remain-isp", no_argument, 0,  'r' },
 	{ "read-serial", no_argument, 0,  's' },
 	{ "help", no_argument, 0,  'h' },
@@ -429,9 +429,9 @@ void usage(void)
 	printf("  --config, -c           enable or disable some config bits\n");
 	printf("                         comma separated values of sub-options:\n");
 	printf("                           rpd=0|1\n");
-	printf("  --aprom, -a            binary APROM file to flash\n");
+	printf("  --aprom-file, -a       binary APROM file to flash\n");
 	printf("  --remain-isp, -r       remain in ISP mode when exiting\n");
-	printf("  --read_serial, -s      read serial output after programming\n");
+	printf("  --read-serial, -s      read serial output after programming\n");
 }
 
 int main(int argc, char *argv[])
